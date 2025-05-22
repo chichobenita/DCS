@@ -16,10 +16,7 @@ We will implement an interrupt-driven FSM, demonstrating robust hardware‑softw
 ```text
 Lab1_Preparation/              # root directory for Lab 1 sources and docs
 ├── DOCsource/                 # lab assignment and reports
-│   ├── lab1_task.pdf          # assignment specification & block diagrams
-│   ├── pre1_labPreface.pdf    # pre-lab introduction answers
-│   ├── pre1_labTheory.pdf     # pre-lab theoretical questions
-│   └── final1_report.pdf      # final lab report with FSM diagram & waveforms
+│   └── lab1_task.pdf          # assignment specification & block diagrams
 ├── header/                    # Public headers for each firmware layer
 │   ├── bsp.h                  # BSP: clock setup, GPIO and peripheral initialization
 │   ├── halGPIO.h              # HAL: GPIO, TimerA, ADC/DAC driver prototypes and ISR declarations
