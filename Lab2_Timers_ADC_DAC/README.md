@@ -1,4 +1,4 @@
-# Lab2 – MSP430 TimerA, ADC & DAC
+# Lab2 – MSP430 TimerA, ADC & DAC 
 
 ## Overview
 
@@ -38,6 +38,20 @@ Lab2_Preparation/
 └── README.md             # This document
 ```
 
+## Lab Procedure & FSM States
+
+Our firmware implements a finite‑state machine with five distinct states, triggered by push buttons PB0–PB3 or on reset:
+
+* **Idle (state0)**: Default after reset. The MCU enters Low‑Power Mode 0 (LPM0), clearing the LCD and enabling interrupts until a button press awakens the system fileciteturn15file0.
+
+* **Frequency Measurement (state1)**: Triggered by PB0 (P2.4 input from signal generator). The system arms TimerA1 in input‑capture mode to timestamp two rising edges, computes the external signal frequency `f_in`, then displays the result dynamically on the LCD at row 0, column 6.
+
+* **Stopwatch Mode (state2)**: Triggered by PB1. On entry, the LCD shows `00:00` and TimerA0 is configured for a 1 s tick. Pressing SW0 toggles start/stop of the up/down stopwatch. Each second, the minutes and seconds are updated in place on the LCD to minimize redraw time and power.
+
+* **Tone Generation (state3)**: Triggered by PB2. Initially displays `Start state 3`, then continuously samples from ADC10, maps the ADC value `N_adc` to a tone frequency `f_out = m·N_adc + n`, and updates TimerA1 CCR registers to generate a PWM tone on the buzzer pin (P2.2).
+
+* **Real‑Time Display (state4)**: Triggered by PB3. Animates a moving character (`'b'`) across the LCD by updating one position at a time, using TimerA0 with a 900 ms interval between moves, and blanks the previous position to create a scrolling effect.
+
 ## Getting Started
 
 1. **Build & Flash** (using MSP430 GCC or TI CCS project):
@@ -59,4 +73,5 @@ Lab2_Preparation/
 
 ---
 
-*Prepared by Ron Benita.
+*Prepared by Ron Benita*
+*Date: May 2025*
