@@ -2,7 +2,7 @@
 
 ## Module Overview & Project Objectives
 
-The DCS (Digital Computer Structure) module provides a deep exploration of CPU architecture, memory hierarchy and management, bus arbitration, interrupts, DMA, and serial communication—culminating in hands-on experience with peripheral device programming and FPGA validation :contentReference[oaicite:0]{index=0}. Across four focused lab assignments and a final capstone project, we will:
+The DCS (Digital Computer Structure) module provides a deep exploration of CPU architecture, memory hierarchy and management, bus arbitration, interrupts, DMA, and serial communication—culminating in hands-on experience with peripheral device programming and FPGA validation. Across four focused lab assignments and a final capstone project, we will:
 
 - Develop C-based firmware for microcontroller GPIO control and interrupt handling  
 - Configure hardware timers and ADC/DAC modules  
