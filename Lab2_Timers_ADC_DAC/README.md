@@ -1,4 +1,4 @@
-# Lab2\_Preparation – MSP430 TimerA, ADC & DAC Lab 2
+# Lab2 – MSP430 TimerA, ADC & DAC Lab 2
 
 ## Overview
 
