@@ -42,7 +42,7 @@ Lab2_Preparation/
 
 Our firmware implements a finite‑state machine with five distinct states, triggered by push buttons PB0–PB3 or on reset:
 
-* **Idle (state0)**: Default after reset. The MCU enters Low‑Power Mode 0 (LPM0), clearing the LCD and enabling interrupts until a button press awakens the system fileciteturn15file0.
+* **Idle (state0)**: Default after reset. The MCU enters Low‑Power Mode 0 (LPM0), clearing the LCD and enabling interrupts until a button press awakens the system.
 
 * **Frequency Measurement (state1)**: Triggered by PB0 (P2.4 input from signal generator). The system arms TimerA1 in input‑capture mode to timestamp two rising edges, computes the external signal frequency `f_in`, then displays the result dynamically on the LCD at row 0, column 6.
 
