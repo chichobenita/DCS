@@ -1,0 +1,89 @@
+# System Programming Lab 1 – GPIO, LPM & Interrupts
+
+## Overview
+
+In Lab 1 we explore the MSP430x2xx/x4xx’s basic peripherals and low‑power features, by:
+
+* **GPIO configuration**: direction, pull‑up/down, input/output modes
+* **Low‑Power Modes (LPM)**: entering/exiting LPM0–LPM4 to conserve power
+* **Interrupt Handling**: configuring GPIO interrupts (button presses) and writing ISR routines
+* **Layered Firmware Architecture**: dividing code into BSP, HAL, API and application layers
+
+We will implement a finite‑state machine (FSM) driven by push‑button interrupts, demonstrating deep understanding of both hardware and software design paradigms.
+
+## Directory Structure
+
+```text
+Lab1_Preparation/              # root directory for Lab 1 sources and docs
+├── DOCsource/                 # lab assignment and pre‑lab reports
+│   └── lab1_task.pdf          # assignment specification & block diagrams
+├── header/                    # public headers for each firmware layer
+│   ├── app.h                  # Application layer: FSM state enums & app routines
+│   ├── api.h                  # API layer: functions for LED display & PWM generation
+│   ├── halGPIO.h              # HAL layer: LED control, switch input, LPM and ISR prototypes
+│   └── bsp.h                  # BSP layer: system clock, GPIO and peripheral init prototypes
+├── source/                    # C source implementations
+│   ├── main.c                 # Application: FSM control loop and state transitions
+│   ├── api.c                  # API: printSWs2LEDs, printArr2SWs, createPWM functions
+│   ├── halGPIO.c              # HAL: sysConfig, LED/SW drivers, LPM, ISR implementation
+│   ├── bsp.c                  # BSP: GPIOconfig, TIMERconfig (stub), ADCconfig (stub)
+└── README.md                  # this overview document
+```
+
+## Pre‑Lab Materials
+
+Consult the following resources before coding:
+
+1. **GPIO** (User Guide MSP430x4xx pp. 407–441; Tutorial Videos)
+2. **LPM & GPIO Interrupts** (User Guide MSP430x4xx pp. 411–412, 45; MSP430xG461x datasheet pp. 34–36; Tutorial Videos 4.1–4.3)
+
+## Lab Tasks & FSM States
+
+Design an interrupt‐driven FSM with these states (triggered by PB0–PB3 on P2.0–P2.3):
+
+| State              | Trigger         | Behavior                                                                                                     |
+| :----------------- | :-------------- | :----------------------------------------------------------------------------------------------------------- |
+| **0 Idle**         | reset           | Enter LPM0, LEDs off, clear display; wait for any PB interrupt                                               |
+| **1 Binary Count** | PB0             | On each press: increment/decrement a 4‑bit counter displayed on LEDs; 0.5 s delay; run for 10 s total        |
+| **2 Blink Shift**  | PB1             | Single LED shifts right→left under 0.5 s delay; preserves last LED position; run for 7 s total               |
+| **3 PWM Tone**     | PB2             | Generate square‑wave on P2.7 at 4 kHz 75% duty, then 2 kHz 25% duty on alternate presses; endless until exit |
+| **4 Sleep**        | any state leave | On exit: turn off LEDs, return to LPM0 (Idle)                                                                |
+
+> **Note**: No state may preempt another until its defined sequence completes (respect ISR priorities) fileciteturn17file0.
+
+## Layered Software Architecture
+
+We organize code into four layers for portability and clarity:
+
+1. **BSP** (`bsp.c`):
+
+   * System clock setup (MCLK ≈ 1 MHz)
+   * GPIO configuration for buttons and LEDs
+2. **HAL** (`hal.c`):
+
+   * Interrupt handlers for buttons
+   * TimerA configuration for delays and PWM
+3. **API** (`api.c`):
+
+   * LED display functions (binary count, shifting)
+   * Delay utilities based on TimerA tick
+   * PWM control functions
+4. **Application** (`main.c`):
+
+   * FSM control loop
+   * State transition logic based on interrupts
+
+## Build & Flash
+
+Use your preferred toolchain (IAR, CCS, or GCC):
+
+```bash
+cd Lab1_Preparation
+make build    # compile BSP, HAL, API, main
+make flash    # program the MSP430 board
+```
+
+Or import the `source/` and `header/` files into an IAR/CCS project as layered source groups.
+
+*Prepared by Ron Benita*
+*Date: May 2025*
