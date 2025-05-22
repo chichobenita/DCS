@@ -21,8 +21,7 @@ We will implement a layered firmware architecture in C, comprising:
 ```text
 Lab2_Preparation/
 ├── DOCsource/            # Lab assignment & theoretical report
-│   ├── lab2_task.pdf     # Original PDF: task description & block diagrams
-│   └── pre2_report.pdf   # Answers to pre-lab theoretical questions
+│   └── lab2_task.pdf     # Original PDF: task description & block diagrams 
 ├── header/               # Public include files for each firmware layer
 │   ├── main.h            # FSM state enums, system mode definitions & entry point prototype
 │   ├── api.h             # API prototypes for TimerA, ADC/DAC, and display functions
