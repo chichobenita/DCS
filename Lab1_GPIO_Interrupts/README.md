@@ -81,17 +81,5 @@ make flash    # program the MSP430 board with the generated image
 
 Or import the `header/` and `source/` files into an IDE project structured by layers.
 
-## Submission Guidelines
-
-* **Pre‑lab Submission** (`id1_id2_prelab1.zip`):
-
-  * `DOCsource/pre1_labPreface.pdf`
-  * `DOCsource/pre1_labTheory.pdf`
-  * Entire `header/` and `source/` folders
-* **Final Report Submission** (`id1_id2_final1.zip`):
-
-  * `DOCsource/final1_report.pdf` (FSM diagram, annotated waveforms, conclusions)
-  * Entire `header/` and `source/` folders
-
-*Prepared by \[Your Name]*
+*Prepared by Ron Benita*
 *Date: May 2025*
