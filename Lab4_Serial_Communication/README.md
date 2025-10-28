@@ -1,187 +1,181 @@
-# **Lab4 – MSP430 UART Communication System**
+# Lab4 – MSP430 UART Communication System
 
-## **Overview**
-This lab implements a **bi-directional asynchronous serial communication system** between the **MSP430G2553** microcontroller and a **PC host** using the **UART (Universal Asynchronous Receiver/Transmitter)** peripheral.  
-The project demonstrates the integration of multiple peripherals — UART, TimerA, ADC10, and LCD — within a **layered firmware architecture** in C, supported by a **finite-state machine (FSM)** and a **Python GUI application** on the PC side.
+## Overview
 
-### **Learning Objectives**
-- Configure and operate the MSP430 UART (USCI_A0) in 8N1 mode at 9600 bps.  
-- Implement **interrupt-driven** serial communication (RX/TX ISRs, circular TX buffer).  
-- Interface and synchronize LCD (HD44780, 4-bit), buzzer (PWM), and potentiometer (ADC10).  
-- Apply a modular software design using **BSP, HAL, API, and Application layers**.  
-- Develop a **PC GUI (Tkinter)** to send framed commands and display responses dynamically.
+This project implements a **bi‑directional asynchronous UART link** between an **MSP430G2553** and a **PC host**. The firmware integrates **UART (USCI_A0)**, **TimerA0/A1**, **ADC10**, and an **HD44780 LCD (4‑bit)** within a **layered C architecture** (BSP → HAL → API → Application) coordinated by an **interrupt‑driven FSM**. A lightweight **Tkinter GUI** on the PC side sends framed commands and logs MCU responses.
+
+### Learning Objectives
+
+* Configure UART A0 for **9600 bps, 8N1** and use **interrupt‑driven RX/TX** with a circular TX buffer.
+* Interface LCD (4‑bit), buzzer (PWM via TA1.1), and potentiometer (ADC10 on P1.3).
+* Apply a clean separation of concerns across **BSP / HAL / API / APP**.
+* Use **low‑power modes (LPM0)** between interrupts.
+* Build a small **Python GUI** to exercise the MCU menu.
 
 ---
 
-## **Directory Structure**
+## Directory Structure
+
+```text
 Lab4_UART/
-├── DOCsource/
-│ └── Preparation_report_LAB4.pdf # Lab specification and assignment details
-├── header/
-│ ├── api.h # API layer: high-level control (counting, buzzer, poten, TX)
-│ ├── app.h # FSM states, system modes, and global variable declarations
-│ ├── bsp.h # Low-level hardware abstraction (clocks, GPIO, timers, UART)
-│ ├── halGPIO.h # Interrupt declarations, timers, UART RX/TX, PBs handlers
-│ ├── LCD.h # LCD driver macros, 4-bit commands and helpers
-│ └── q14_math.h # Fixed-point arithmetic (Q14) utilities for ADC-to-frequency mapping
-├── source/
-│ ├── main.c # FSM core: transitions between 8 system states (1–8)
-│ ├── api.c # Application interface: UART messaging, ADC reading, PWM tones
-│ ├── halGPIO.c # ISRs for ADC10, TimerA0/A1, UART RX/TX, Port interrupts
-│ ├── bsp.c # System setup: GPIO, clock, ADC, timers, UART init
-│ ├── LCD.c # LCD driver (HD44780): 4-bit mode, init, cmd, data, delay
-│ └── ...
-├── PC_side/
-│ ├── pcside.py # Tkinter GUI – COM selection, command buttons, serial logging
-│ ├── requirements.txt
-│ └── README.md
-└── README.md # This document
+├─ DOCsource/
+│  └─ Preparation_report_LAB4.pdf    # Lab specification & diagrams
+├─ header/                            # Public headers for each layer
+│  ├─ api.h        # High‑level APIs (counting, tones, ADC, UART TX, parser)
+│  ├─ app.h        # FSM states, system modes, shared globals
+│  ├─ bsp.h        # Clocks, GPIO, TimerA, ADC10, UART macros & prototypes
+│  ├─ halGPIO.h    # ISRs (ADC10/TimerA/UART/Ports) + timer helpers
+│  ├─ LCD.h        # LCD macros (4‑bit), commands, helpers
+│  └─ q14_math.h   # Q14 utilities (ADC→freq mapping, fixed‑point helpers)
+├─ source/                            # MCU firmware implementation
+│  ├─ main.c       # Application FSM loop & state dispatch
+│  ├─ api.c        # High‑level behaviors + UART TX queue + message parser
+│  ├─ halGPIO.c    # ISRs: ADC10, TimerA0/1, UART RX/TX, Port1; LPM exits
+│  ├─ bsp.c        # GPIO/Clock init, TimerA0/A1 setup, ADC10, UART init
+│  ├─ LCD.c        # HD44780 4‑bit driver (init/cmd/data/cursor/delay)
+│  └─ ...
+├─ PC_side/
+│  ├─ pcside.py    # Tkinter GUI: COM selection, @N# / @3X# sender, RX log
+│  ├─ requirements.txt
+│  └─ README.md
+└─ README.md                        # This document
+```
 
-markdown
-Copy code
-
----
-
-## **Firmware Architecture**
-
-### **BSP – Board Support Package**
-Responsible for low-level peripheral configuration:
-- `GPIOconfig()` sets up I/O pins, LCD control lines, and PB1 with pull-up.  
-- `TIMERconfig()` initializes TimerA0 for delay ticks and TimerA1 for PWM/capture.  
-- `ADCconfig()` enables ADC10 on P1.3 for potentiometer sampling.  
-- `UARTconfig()` / `UART_Init()` configure UART A0 at 9600 bps (SMCLK ≈ 1 MHz).  
-- Provides clock routing via VLO/ACLK for power-efficient timing.
+> **Note:** If actual file names differ, update the tree to match your repo before publishing.
 
 ---
 
-### **HAL – Hardware Abstraction Layer**
-Implements all **hardware ISRs** and peripheral helpers:
+## Firmware Architecture
 
-- **TimerA0 ISR** – generates 1 s ticks for counting and updates the stopwatch.  
-- **TimerA1 ISR** – handles PWM tone progression and frequency capture.  
-- **ADC10 ISR** – converts potentiometer ADC value to frequency (`f_out = 1.466·ADC + 1000`).  
-- **UART RX ISR** – reconstructs messages framed as `@...#` and invokes `api_handle_msg()`.  
-- **UART TX ISR** – sends queued bytes from a circular buffer (`tx_buf[TX_BUF_SZ]`).  
-- **Port1 ISR** – handles PB1 input (state 5 → “I love my Negev”).  
+### BSP (Board Support Package)
 
-Includes helpers for low-power modes:
-```c
-enterLPM();
-enable_interrupts();
-disable_interrupts();
-API Layer
-Provides high-level functionality exposed to the FSM:
+Responsible for **low‑level setup**:
 
-count_up() – Stopwatch on LCD (“MM:SS”) updated via TimerA0 tick.
+* `GPIOconfig()` — Ports, pull‑ups, LCD lines, PB1 configuration.
+* `TIMERconfig()` — **TimerA0** tick generator (ACLK/VLO) and **TimerA1** (PWM/capture).
+* `ADCconfig()` — **ADC10** on **P1.3** for potentiometer sampling.
+* `UARTconfig()` / `UART_Init(9600)` — UART A0 @ **9600 bps (SMCLK≈1 MHz)**.
 
-buzzer_tones() – Plays tone sequence (1 kHz → 2.5 kHz) using TA1CCR1 PWM.
+### HAL (Hardware Abstraction Layer)
 
-poten_meas() – Samples ADC10, computes voltage, displays as “x.xx V”.
+Implements **ISRs and hardware helpers**:
 
-rec_X() – Displays delay parameter X received from PC.
+* **TimerA0 ISR** — stopwatch tick / tone step wakeups.
+* **TimerA1 ISR** — PWM tone sequencing and capture‑to‑frequency conversion.
+* **ADC10 ISR** — converts ADC to `f_out` (e.g., ~`1.466·ADC + 1000`).
+* **USCI_A0 RX ISR** — reconstructs framed messages `@...#` and calls `api_handle_msg()`.
+* **USCI_A0 TX ISR** — drains the circular TX buffer (`tx_buf`).
+* **Port1 ISR** — PB1 → triggers state 5 (send fixed string).
+* LPM helpers: `enterLPM()`, `enable_interrupts()`, `disable_interrupts()`.
 
-send_love() – Sends “I love my Negev” over UART (ISR-driven TX).
+### API Layer
 
-reset_count() – Resets stopwatch counters.
+High‑level, register‑free functions the APP calls:
 
-api_handle_msg(const char *msg) – Parses UART commands and updates nextstate.
+* `count_up()` — Stopwatch on LCD (`MM:SS`) using TimerA0 tick; partial‑update prints.
+* `buzzer_tones()` — Cyclic tone series **1–2.5 kHz** on TA1.1 (50% duty).
+* `poten_meas()` — ADC10 sample → compute voltage → print as `x.xx V`.
+* `rec_X()` — Display the current delay **X [ms]**.
+* `send_love()` — Transmit `"I love my Negev"` via UART (ISR‑driven TX).
+* `reset_count()` — Clear stopwatch counters.
+* `get_string()` — Print buffered text to LCD.
+* `api_handle_msg(const char* msg)` — Parse framed commands and set `nextstate`.
 
-UART Command Frames
-less
-Copy code
-@1#     → start count
-@2#     → play tones
-@3XXX#  → set delay X (ms)
-@4#     → measure potentiometer
-@5#     → PB1 message trigger
-@6#     → clear LCD
-@7#     → reprint text
-@8#     → sleep mode
-All UART transmission is non-blocking and interrupt-driven.
+### Application (main.c)
 
-Application Layer (main.c)
-Implements the Finite-State Machine controlling the system:
+Main **FSM loop** and state dispatch. Each state runs until an interrupt or UART command updates `nextstate`, with **LPM0** used between events.
 
-c
-Copy code
-while (1) {
-    switch (state) {
-        case state1: count_up();      break;
-        case state2: buzzer_tones();  break;
-        case state3: rec_X();         break;
-        case state4: poten_meas();    break;
-        case state5: send_love();     break;
-        case state6: reset_count();   break;
-        case state7: get_string();    break;
-        case state8: /* sleep */      break;
-    }
-    state = nextstate;
-}
-Each state runs until a UART command or interrupt changes nextstate.
-Low-power modes (LPM0) are used between interrupts to minimize energy consumption.
+---
 
-PC Application (Python GUI)
-The host GUI (pcside.py) is built with Tkinter and PySerial to enable easy communication and testing.
+## UART Protocol (PC ↔ MCU)
 
-Features
-Auto-detects available COM ports.
+Framed commands from PC use `@` and `#` delimiters:
 
-Sends UART frames @N# (for 1–8) via buttons.
+```text
+@1#      → Counting on LCD with delay X
+@2#      → Circular tone series via buzzer
+@3X#     → Set delay X (ms), e.g., @3500#
+@4#      → Display potentiometer voltage on LCD
+@5#      → On PB1 press, send fixed string to PC
+@6#      → Clear LCD
+@7#      → Reprint text/menu
+@8#      → Enter sleep (LPM0)
+```
 
-Button 3 opens a dialog to enter delay X (ms) → sends @3X#.
+All UART TX is **non‑blocking** and **interrupt‑driven** (circular buffer).
 
-A background RX thread displays all MCU responses in a live log area.
+---
 
-Usage
-bash
-Copy code
+## FSM States (Summary)
+
+| State | Purpose                                          |
+| :---: | :----------------------------------------------- |
+|   1   | `count_up()` — Stopwatch on LCD with delay **X** |
+|   2   | `buzzer_tones()` — PWM tones (1–2.5 kHz)         |
+|   3   | `rec_X()` — Show/update delay **X [ms]**         |
+|   4   | `poten_meas()` — ADC10 read → print `x.xx V`     |
+|   5   | `send_love()` — On PB1, TX "I love my Negev"     |
+|   6   | `reset_count()` — Clear stopwatch counters       |
+|   7   | `get_string()` — Print buffered string to LCD    |
+|   8   | Sleep — enter **LPM0** until UART/PB wake        |
+
+---
+
+## Hardware Connections
+
+| Peripheral    | MSP430 Pin(s)                              | Notes                     |
+| ------------- | ------------------------------------------ | ------------------------- |
+| UART          | **P1.1 (RX), P1.2 (TX)**                   | LaunchPad USB‑UART bridge |
+| LCD (4‑bit)   | **P1.4–P1.7 (D7–D4), P2.5–P2.7 (RS,RW,E)** | HD44780                   |
+| Buzzer        | **P2.4 (TA1.1 PWM)**                       | 50% duty by CCR1          |
+| Potentiometer | **P1.3 (ADC10 A3)**                        | 0–3.3 V                   |
+| PB1           | **P1.0**                                   | Triggers state 5          |
+
+---
+
+## Build & Flash (MCU)
+
+Use **TI CCS** or your chosen makeflow. Typical steps:
+
+```bash
+# Open the CCS project in source/ and build
+# or, if using Makefiles (example):
+make all
+make flash
+```
+
+* UART default: **9600 bps, 8N1**, clocked from **SMCLK≈1 MHz** (ACLK/VLO used for TimerA0 ticks).
+
+---
+
+## PC Application (Tkinter GUI)
+
+### Features
+
+* Auto‑detect **COM** ports, one‑click **Connect**.
+* Buttons **1–8** send `@N#`; button **3** prompts for **X** then sends `@3X#`.
+* Background **RX thread** shows MCU responses in a scrolling log.
+
+### Usage
+
+```bash
 python pcside.py
-Then select COM port → click Connect → press buttons 1–8 to interact with the MCU.
+```
 
-Example serial log:
+Select the COM port → **Connect** → press **1–8** to interact.
 
-vbnet
-Copy code
-Connected to COM3
-Response: Menu printed
-Response: I love my Negev
-Response: Voltage = 2.73 V
-Hardware Connections
-Peripheral	MSP430 Pin(s)	Description
-UART	P1.1 (RX), P1.2 (TX)	Connected via LaunchPad USB-UART
-LCD (4-bit)	P1.4–P1.7 (D7–D4), P2.5–P2.7 (RS,RW,E)	Standard HD44780 interface
-Buzzer	P2.4 (TA1.1 PWM)	Audio tone output
-Potentiometer	P1.3 (ADC10 A3)	Analog input (0–3.3 V)
-Push Button PB1	P1.0	Sends “I love my Negev” message
+---
 
-System Operation
-Command	Functionality
-@1#	Counting on LCD with delay X (ms)
-@2#	Circular tone series via buzzer
-@3X#	Set new delay X (ms)
-@4#	Display potentiometer voltage
-@5#	On PB1 press, send “I love my Negev”
-@6#	Clear LCD display
-@7#	Reprint text/menu
-@8#	Enter sleep (LPM0) mode
+## Testing & Verification
 
-Testing & Verification
-Flash the firmware using Code Composer Studio.
+1. Open a serial terminal (or the GUI) at **9600 8N1** and verify the **menu**.
+2. Exercise states **1–8** and observe **LCD**, **buzzer**, and **serial** output.
+3. Probe **P1.1/P1.2** on a scope to verify frames/baud.
+4. Turn the potentiometer and confirm live **x.xx V** updates on the LCD.
+5. Validate PWM frequencies on **P2.4** across the tone sequence.
 
-Run pcside.py and connect to the correct COM port (9600 8N1).
+---
 
-Press buttons 1–8 and observe LCD, buzzer, and serial output.
+## Credits
 
-Use an oscilloscope on P1.1/P1.2 to verify UART frames (9600 bps).
-
-Adjust potentiometer and confirm live ADC-to-voltage updates on LCD.
-
-Validate PWM tone generation on P2.4 for all frequencies.
-
-Prepared by
-Ron Benita
-Date: May 2025
-Course: Embedded Systems Lab – MSP430G2553
-
-yaml
-Copy code
+Prepared by **Ron Benita** · May 2025
